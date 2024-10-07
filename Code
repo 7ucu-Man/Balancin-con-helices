@@ -1,0 +1,83 @@
+Arduino CODE:
+#include "I2Cdev.h"
+#include "MPU6050.h"
+#include "Wire.h"
+
+// Definición de pines para motores
+const int motorA_in1 = 8; 
+const int motorA_in2 = 9; 
+const int motorB_in1 = 10; 
+const int motorB_in2 = 11; 
+
+MPU6050 sensor;
+int16_t ax, ay, az;  // Variables para almacenar aceleraciones
+float angleY;  // Ángulo en el eje Y
+float setpoint = 0.0;  // Ángulo objetivo
+float Kp = 2.0;  // Ganancia proporcional
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin();
+  sensor.initialize();
+
+  pinMode(motorA_in1, OUTPUT);
+  pinMode(motorA_in2, OUTPUT);
+  pinMode(motorB_in1, OUTPUT);
+  pinMode(motorB_in2, OUTPUT);
+  
+  if (sensor.testConnection()) 
+    Serial.println("Sensor iniciado correctamente");
+  else 
+    Serial.println("Error al iniciar el sensor");
+}
+
+void loop() {
+  // Leer aceleración
+  sensor.getAcceleration(&ax, &ay, &az);
+  
+  // Calcular el ángulo en Y
+  angleY = atan2(ay, az) * (180.0 / 3.14159); // Convertir a grados
+  
+  // Mostrar el ángulo
+  Serial.print("Ángulo Y: ");
+  Serial.println(angleY);
+
+  // Error de control
+  float error = setpoint - angleY;
+
+  // Calcular la señal de control
+  float control_signal = Kp * error;
+
+  // Limitar la señal de control para que sea válida como PWM (0 a 255)
+  control_signal = constrain(control_signal, -255, 255);
+
+  // Control de motores basado en la señal de control
+  if (control_signal > 0) {
+    // Mover motores hacia adelante
+    analogWrite(motorA_in1, control_signal); // Ajusta velocidad del motor A
+    digitalWrite(motorA_in2, LOW);
+    
+    analogWrite(motorB_in1, control_signal); // Ajusta velocidad del motor B
+    digitalWrite(motorB_in2, LOW);
+  } else if (control_signal < 0) {
+    // Mover motores hacia atrás (inverso)
+    digitalWrite(motorA_in1, LOW);
+    analogWrite(motorA_in2, abs(control_signal));
+    
+    digitalWrite(motorB_in1, LOW);
+    analogWrite(motorB_in2, abs(control_signal));
+  } else {
+    // Detener motores si no se necesita corrección
+    stopMotors();
+  }
+
+  delay(100); // Pausa breve antes de la siguiente lectura
+}
+
+// Función para detener ambos motores
+void stopMotors() {
+  digitalWrite(motorA_in1, LOW);
+  digitalWrite(motorA_in2, LOW);
+  digitalWrite(motorB_in1, LOW);
+  digitalWrite(motorB_in2, LOW);
+}
